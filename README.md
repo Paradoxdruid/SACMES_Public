@@ -9,16 +9,16 @@ Software to process square-wave voltammograms.
    - Mac    : Open terminal
    - Windows: Open Anaconda Prompt
 4. Change the directory to the folder where SACMES.py and env.yml are in:<br />
-   cd ...
+   `cd ...`
 5. Run the command:<br />
-   conda env create -f env.yml
+   `conda env create -f env.yml`
 ### Running the program
 1. - Mac    : Open terminal
    - Windows: Open Anaconda Prompt
 2. Activate the environment using the command:<br />
-   conda activate SACMES
+   `conda activate SACMES`
 3. Change the directory to the folder where SACMES.py is in:<br />
-   cd ...
+   `cd ...`
 4. Run the program using the command:<br />
-   python SACMES.py
+   `python SACMES.py`
    
