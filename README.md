@@ -21,4 +21,9 @@ Software to process square-wave voltammograms.
    `cd ...`
 4. Run the program using the command:<br />
    `python SACMES.py`
+### Updating the program
+1. Download the latest version of SACMES.py.
+2. Replace the older version with the newer version.
+3. Follow the the steps in 'Running the Program' section to run the program.
+4. No need to do anything else since the environment should be ready from initial setup.
    

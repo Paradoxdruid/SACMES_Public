@@ -74,9 +74,9 @@ class PlotTimeReportingMode(Enum):
             case PlotTimeReportingMode.FILE_NUMBER:
                 return "File Number"
 STARTING_FILE_NUMBER: int = 1
-DEFAULT_NORMALIZATION_FILE_NUMBER: int = 3
+DEFAULT_NORMALIZATION_FILE_NUMBER: int = 1
 # frequencies initially displayed in Frequency Listbox
-global_input_frequencies: List[int] = [6, 14, 25, 40, 60, 200]
+global_input_frequencies: List[int] = [5, 10, 15, 30, 40, 60, 100, 150, 200]
 ELECTRODES_NUMBERS: List[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 ########################################
 ### Polynomial Regression Parameters ###
@@ -223,6 +223,14 @@ def file_is_complete(filename: str) -> bool:
         #print(f"{filename} does not exist")
         return False
 
+def get_time(file_index: int) -> float:
+    if file_index == 0:
+        file_index = 1
+    file_now = global_file_path + make_file_name(file_index,1,global_low_frequency)
+    file_1 = global_file_path + make_file_name(1,1,global_low_frequency)
+    exp_time = (os.path.getmtime(file_now) - os.path.getmtime(file_1))/3600 # in hours
+    return exp_time
+
 def make_file_name(file_index: int, electrode: int, frequency: int) -> str:
     """Instantiate the file name pattern with the given values."""
     name: str = global_file_name_pattern
@@ -298,7 +306,7 @@ def _update_global_lists(file: int):
     """Record the file number and sample rate in global lists."""
     if file not in global_file_list:
         global_file_list.append(file)
-        sample: float = round(len(global_file_list)*global_sample_rate/3600, 3)
+        sample: float = round(get_time(len(global_file_list)), 3)
         global_sample_list.append(sample)
         global_real_time_sample_label.config(text=str(sample))
         if file != global_number_of_files_to_process:
@@ -311,7 +319,7 @@ def compute_x_bounds(file_index: int) -> Tuple[float, float]:
     right: float #hours OR file number
     match global_x_axis_mode:
         case PlotTimeReportingMode.EXPERIMENT_TIME:
-            now = file_index * global_sample_rate / 3600
+            now = get_time(file_index)
         case PlotTimeReportingMode.FILE_NUMBER:
             now = file_index
     match global_x_left_bound_radiobutton:
@@ -598,12 +606,7 @@ class InputFrame(ttk.Frame):
         self.analysis_interval.insert(tk.END, "10")
         self.analysis_interval.grid(row=row_value+1, column=2, columnspan=2, pady=6)
         row_value += 2
-        #---Sample Rate Variable---#
-        ttk.Label(self, text="Sampling Rate (s):", font=LARGE_FONT).\
-            grid(row=row_value, column=0, columnspan=2)
-        self.sample_rate = ttk.Entry(self, width=7)
-        self.sample_rate.insert(tk.END, "20")
-        self.sample_rate.grid(row=row_value+1, column=0, columnspan=2)
+        #--- Resize interval to update figures
         ttk.Label(self, text="Resize Interval", font=LARGE_FONT).\
             grid(row=row_value, column=2, columnspan=2)
         self.resize_entry = ttk.Entry(self, width=7)
@@ -641,12 +644,13 @@ class InputFrame(ttk.Frame):
         self.single_electrode_file =\
             ttk.Button(self.electrode_listbox_frame, text="Multichannel", style="On.TButton",\
                        command=lambda: self.electrode_select(ElectrodesMode.SINGLE))
-        self.single_electrode_file.grid(row=2, column=0)
+        self.single_electrode_file.grid(row=2, column=0,columnspan=2)
+        # Disabling Multiplex selection since CH Instruments don't support 'each electrode in a separate file' format
         #--- Option to have data for each electrode in a separate file ---#
-        self.multiple_electrode_files =\
-            ttk.Button(self.electrode_listbox_frame, text="Multiplex", style="Off.TButton",\
-                       command=lambda: self.electrode_select(ElectrodesMode.MULTIPLE))
-        self.multiple_electrode_files.grid(row=2, column=1)
+        #self.multiple_electrode_files =\
+        #    ttk.Button(self.electrode_listbox_frame, text="Multiplex", style="Off.TButton",\
+        #               command=lambda: self.electrode_select(ElectrodesMode.MULTIPLE))
+        #self.multiple_electrode_files.grid(row=2, column=1)
         #--- Frame for editing electrodes ---#
         self.electrode_settings_frame = ttk.Frame(self, relief="groove")
         self.electrode_settings_frame.grid(row=10, column=0, columnspan=2,\
@@ -737,8 +741,10 @@ class InputFrame(ttk.Frame):
                                         selectmode=tk.SINGLE, bd=3)
         self.methods_box.bind("<<ListboxSelect>>", self.select_data_analysis_method)
         self.methods_box.grid(row=row_value+1, column=2, columnspan=2)
-        for method in AnalysisMethod:
-            self.methods_box.insert(tk.END, str(method))
+        # Disabling Frequency Map Selection since its implementation is not final
+        #for method in AnalysisMethod:
+        #    self.methods_box.insert(tk.END, str(method)) 
+        self.methods_box.insert(tk.END, str(AnalysisMethod.CONTINUOUS_SCAN))
         row_value += 2
         #--- Select Data to be Plotted ---#
         ttk.Label(self, text="Select Data to be Plotted", font=LARGE_FONT).\
@@ -1116,7 +1122,7 @@ class InputFrame(ttk.Frame):
             global_normalization_point,\
             global_queue
         #---Get the User Input and make it globally accessible---#
-        global_sample_rate = float(self.sample_rate.get()) # sample rate for experiment in seconds
+        global_sample_rate = 20
         match global_analysis_method:
             case AnalysisMethod.CONTINUOUS_SCAN:
                 global_number_of_files_to_process = int(self.numfiles.get())
@@ -1531,7 +1537,7 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             case PeakMethod.POLY:
                 #--- Title ---#
                 ttk.Label(regression_frame,\
-                        text="Savitzky-Golay smoothing window (mV)", font=MEDIUM_FONT).\
+                        text="Poly Fit Savitzky-Golay smoothing window (mV)", font=MEDIUM_FONT).\
                             grid(row=0, column=0, columnspan=4, pady=5, padx=5)
                 ###################################################################
                 ### Real Time Manipulation of Savitzky-Golay Smoothing Function ###
@@ -1616,6 +1622,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                                                         command=self.adjust_parameters)
                 self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
             case PeakMethod.GAUSS:
+                ttk.Label(regression_frame, text="Gauss Method", font=MEDIUM_FONT).\
+                        grid(row=0, column=0, columnspan=4, pady=5, padx=5)
                 self.high = global_frequency_list[-1] > CUTOFF_FREQUENCY
                 self.low = global_frequency_list[0] <= CUTOFF_FREQUENCY
                 ##########################################################
@@ -2512,7 +2520,8 @@ class InitializeContinuousCanvas():
             global_sample_list,\
             global_plot_frames,\
             global_plot_values,\
-            global_gauss_solver
+            global_gauss_solver,\
+            global_peak_list
         ##############################################
         ### Generate global lists for data storage ###
         ##############################################
@@ -2527,6 +2536,8 @@ class InitializeContinuousCanvas():
         ############################################
         # gauss method solver:
         global_gauss_solver = []
+        # gauss peak location
+        global_peak_list = [[[0.0]]]*global_electrode_count
         # Peak Height/AUC data (after smoothing and polynomial regression or gauss method):
         #global_data_list = [0]*global_electrode_count
         global_data_list = [[[0.0]]]*global_electrode_count
@@ -2540,12 +2551,14 @@ class InitializeContinuousCanvas():
         global_kdm_list = []
         for num in range(global_electrode_count):
             # a data list for each electrode:
+            global_peak_list[num] = [[0.0]]*self.length
             global_data_list[num] = [[0.0]]*self.length
             global_normalized_data_list[num] = [[0.0]]*self.length
             global_offset_normalized_data_list[num] = [0.0]*global_number_of_files_to_process
             # a data list for each frequency for that electrode:
             for count in range(self.length):
                 # use [0]*number_of_files_to_process to preallocate list space:
+                global_peak_list[num][count] = [0.0]*global_number_of_files_to_process
                 global_data_list[num][count] = [0.0]*global_number_of_files_to_process
                 global_normalized_data_list[num][count] = [0.0]*global_number_of_files_to_process
         for num in range(global_electrode_count):
@@ -2668,8 +2681,8 @@ class InitializeContinuousCanvas():
                 #---Initiate the subplots---#
                 # this assigns a Line2D artist object to the artist object (Axes)
                 smooth, = axs[0][freq].plot([], [], "ko", markersize=2)
-                regress, = axs[0][freq].plot([], [], "r-")
-                linear, = axs[0][freq].plot([], [], "r-")
+                regress, = axs[0][freq].plot([], [], "b-")
+                center, = axs[0][freq].plot([], [], "r-")
                 peak, = axs[1][freq].plot([], [], "ko", markersize=1)
                 peak_injection, = axs[1][freq].plot([], [], "bo", markersize=1)
                 normalization, = axs[2][freq].plot([], [], "ko", markersize=1)
@@ -2700,7 +2713,7 @@ class InitializeContinuousCanvas():
                                                             normalization,\
                                                             norm_injection,\
                                                             poly,\
-                                                            linear)
+                                                            center)
                 #--- And append that list to keep a global reference ---#
                 # 'plots' is a list of artists that are passed to animate:
                 electrode_plot.append(plots)
@@ -2708,7 +2721,7 @@ class InitializeContinuousCanvas():
                 if electrode_frame not in global_frame_list:
                     global_frame_list.append(electrode_frame)
                 #--- Create empty plots to return to animate for initializing---#
-                global_empty_plots = [smooth, regress, peak, normalization]
+                global_empty_plots = [smooth, regress, peak, normalization,center]
             # global_plot_list is a list of lists containing 'plots' for each electrode:
             global_plot_list_continuous_scan.append(electrode_plot)
             #-- Return both the figure and the axes to be stored as global variables --#
@@ -2791,7 +2804,8 @@ class InitializeContinuousCanvas():
         global global_high_xstart,\
             global_high_xend,\
             global_low_xstart,\
-            global_low_xend
+            global_low_xend,\
+            global_gauss_solver
         
         try:
             #########################
@@ -2830,6 +2844,11 @@ class InitializeContinuousCanvas():
                 potentials = potentials[:-cut_value]
                 currents = currents[:-cut_value]
             adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
+            #################################
+            ### Create Gauss solvers once ###
+            #################################
+            length = len(adjusted_potentials)
+            global_gauss_solver.append(MultiGausFitNoise_LSE(length, global_options_Gauss))
             #########################################
             ### Savitzky-Golay smoothing          ###
             #########################################
@@ -2898,12 +2917,11 @@ class InitializeFrequencyMapCanvas():
             global_frame_list,\
             global_plot_frames,\
             global_plot_values,\
-            global_gauss_solver
+            global_gauss_solver,\
+            global_peak_list
         ##############################################
         ### Generate global lists for data storage ###
         ##############################################
-        # gauss method solver:
-        global_gauss_solver = []
         self.length = len(global_frequency_list)
         #--- Animation list ---#
         global_animations = []
@@ -2914,13 +2932,19 @@ class InitializeFrequencyMapCanvas():
         ############################################
         ### Create global lists for data storage ###
         ############################################
+         # gauss method solver:
+        global_gauss_solver = []
+        # gauss peak location
+        global_peak_list = [[[0.0]]]*global_electrode_count
         # Peak Height/AUC data (after smoothing and polynomial regression):
         global_data_list = [[[0.0]]]*global_electrode_count
         for num in range(global_electrode_count):
             # a data list for each electrode:
+            global_peak_list[num] = [[0.0]]*self.length
             global_data_list[num] = [[0.0]]*self.length
             # a data list for each frequency for that electrode:
             for count in range(self.length):
+                global_peak_list[num][count] = [0.0]*global_number_of_files_to_process
                 global_data_list[num][count] = [0.0]*global_number_of_files_to_process
         #--- Lists of Frames and Artists ---#
         global_plot_list_frequency_map = []
@@ -3047,7 +3071,7 @@ class InitializeFrequencyMapCanvas():
                         electrode: int,\
                         frequency: int) -> None:
         """Initialize subplots."""
-        global global_high_xstart, global_high_xend, global_low_xstart, global_low_xend
+        global global_high_xstart, global_high_xend, global_low_xstart, global_low_xend, global_gauss_solver
         try:
             #########################
             ### Retrieve the data ###
@@ -3078,6 +3102,11 @@ class InitializeFrequencyMapCanvas():
                 potentials = potentials[:-cut_value]
                 currents = currents[:-cut_value]
             adjusted_potentials = [value for value in potentials if xend <= value <= xstart]
+            #################################
+            ### Create Gauss solvers once ###
+            #################################
+            length = len(adjusted_potentials)
+            global_gauss_solver.append(MultiGausFitNoise_LSE(length, global_options_Gauss))
             #########################################
             ### Savitzky-Golay smoothing          ###
             #########################################
@@ -3393,7 +3422,7 @@ class ElectrochemicalAnimation():
         """Perform the next iteration of the animation."""
         if self.file not in self.file_list:
             self.file_list.append(self.file)
-            self.sample_list.append((len(self.file_list)*global_sample_rate)/3600)
+            self.sample_list.append(get_time(len(self.file_list)))
         frequency = int(global_frequency_list[self.count])
         match global_analysis_method:
             case AnalysisMethod.CONTINUOUS_SCAN:
@@ -3489,8 +3518,7 @@ class ElectrochemicalAnimation():
             root.after(1, self._step)
 
     def _raw_generator(self, myfile: str, frequency: int) ->\
-          Tuple[List[float], List[float], List[float], List[float], List[float]]:
-        global global_gauss_solver
+          Tuple[List[float], List[float], List[float], List[float], List[float], List[float]]:
         """Generate data for raw data visualization."""
         ################################################
         ### Polynomial Regression or Gauss Range (V) ###
@@ -3570,6 +3598,7 @@ class ElectrochemicalAnimation():
                 ### Polynomial Regression ###
                 #############################
                 eval_regress: List[float] = np.polyval(polynomial_coeffs, adjusted_potentials).tolist()
+                center_regress: List[float] = eval_regress # Empty because reserved for Gauss Method
                 ###############################################
                 ### Absolute Max/Min Peak Height Extraction ###
                 ###############################################
@@ -3589,12 +3618,6 @@ class ElectrochemicalAnimation():
                 ####################
                 ### Gauss Method ###
                 ####################
-                ###########################
-                ### Create solvers once ###
-                ###########################
-                length = len(adjusted_potentials)
-                if  self.index == 0 and self.num == 0:
-                    global_gauss_solver.append(MultiGausFitNoise_LSE(length, global_options_Gauss))
                 #######################################
                 ### adjust the currents to          ###
                 ### match the adjusted potentials   ###
@@ -3668,9 +3691,12 @@ class ElectrochemicalAnimation():
                 # Calculate fit
                 fit = (theta[9] + theta[0] * np.exp(-(data_x - theta[3])**2 * theta[6]) +
                     theta[1] * np.exp(-(data_x - theta[4])**2 * theta[7]) +
-                    theta[2] * np.exp(-(data_x - theta[5])**2 * theta[8]))              
+                    theta[2] * np.exp(-(data_x - theta[5])**2 * theta[8]))
+                fit_center = theta[9] + theta[0] * np.exp(-(data_x - theta[3])**2 * theta[6])               
                 # Regression output for Gauss Method 
                 eval_regress: List[float] = fit.tolist()
+                # Regression output for Gauss Method (Only Center)
+                center_regress: List[float] = fit_center.tolist()
                 # There is no smoothing in Gauss method
                 smooth_currents: List[float] = currents
                 ################################################################
@@ -3678,6 +3704,9 @@ class ElectrochemicalAnimation():
                 ################################################################
                 data: float
                 peak_height=theta[0].item()
+                peak_loc = theta[3].item()
+                global_peak_list[self.num][self.count][self.index] = peak_loc
+
         match global_plot_summary_mode:
             case PlotSummaryMode.PHE:
                 data = peak_height
@@ -3688,7 +3717,11 @@ class ElectrochemicalAnimation():
                 ##################################
                 auc_index = 1
                 auc: float = 0
-                auc_potentials = adjusted_potentials
+                match global_peak_method:
+                    case PeakMethod.POLY: 
+                        auc_potentials = adjusted_potentials
+                    case PeakMethod.GAUSS: 
+                        auc_potentials = eval_regress # TODO:check if this is the correct one
                 #--- Find the minimum value and normalize it to 0 ---#
                 auc_min = min(adjusted_currents)
                 auc_currents = [y - auc_min for y in adjusted_currents]
@@ -3714,10 +3747,11 @@ class ElectrochemicalAnimation():
         #####################################################
         ### Return data to the animate function as 'args' ###
         #####################################################
-        return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress
+        return potentials, adjusted_potentials, smooth_currents, adjusted_currents, eval_regress, center_regress
 
     def _continuous_func(self,\
                          framedata: Tuple[List[float],\
+                                        List[float],\
                                         List[float],\
                                         List[float],\
                                         List[float],\
@@ -3729,6 +3763,7 @@ class ElectrochemicalAnimation():
         smooth_currents: List[float]
         adjusted_currents: List[float]
         regression: List[float]
+        center_regress: List[float]
         x_axis: Sequence[float]
         if global_key > 0:
             while True:
@@ -3736,7 +3771,8 @@ class ElectrochemicalAnimation():
                     adjusted_potentials,\
                     smooth_currents,\
                     adjusted_currents,\
-                    regression =\
+                    regression,\
+                    center_regress =\
                         framedata
                 #############################################################
                 ### Acquire the current frequency and get the xstart/xend ###
@@ -3765,7 +3801,7 @@ class ElectrochemicalAnimation():
                     normalization,\
                     norm_injection,\
                     poly,\
-                    linear) = global_plot_list_continuous_scan[self.num][self.count]
+                    center) = global_plot_list_continuous_scan[self.num][self.count]
                 ##########################
                 ### Visualize the data ###
                 ##########################
@@ -3784,6 +3820,7 @@ class ElectrochemicalAnimation():
                     #Smooth current voltammogram:
                     smooth.set_data(potentials, smooth_currents)
                     regress.set_data(adjusted_potentials, regression)
+                    center.set_data(adjusted_potentials,center_regress)
                     #Raw Data:
                     peak.set_data(x_axis, data)
                     #Normalized Data:
@@ -3802,6 +3839,7 @@ class ElectrochemicalAnimation():
                         smooth.set_data(potentials, smooth_currents)
                         #Regression voltammogram:
                         regress.set_data(adjusted_potentials, regression)
+                        center.set_data(adjusted_potentials,center_regress)
                         #Raw Data up until injection point:
                         peak.set_data(x_axis[:injection_index], data[:injection_index])
                         #Raw Data after injection point:
@@ -3816,6 +3854,7 @@ class ElectrochemicalAnimation():
                         # Smooth current voltammogram:
                         smooth.set_data(potentials, smooth_currents)
                         regress.set_data(adjusted_potentials, regression)
+                        center.set_data(adjusted_potentials,center_regress)
                         # Raw Data:
                         peak.set_data(x_axis, data)
                         # Clear the injection artist:
@@ -3840,7 +3879,7 @@ class ElectrochemicalAnimation():
                     normalization,\
                     norm_injection,\
                     poly,\
-                    linear]
+                    center]
         else:
             time.sleep(0.1)
             print("Yielding Empty Plots in Animation")
@@ -3992,7 +4031,7 @@ class DataNormalization():
     def normalize(self, file: int, data: float, num: int, count: int, index: int) -> None:
         """Normalize the data to the given file."""
         global global_initialized_normalization
-        sample: float = len(global_file_list)*global_sample_rate/3600
+        sample: float = get_time(len(global_file_list))
         #######################################################
         ## Check the frequency and apply the baseline offset ##
         #######################################################
@@ -4765,6 +4804,17 @@ class TextFileExport():
         match global_analysis_method:
             case AnalysisMethod.CONTINUOUS_SCAN:
                 txt_list: List[str] = []
+                match global_plot_summary_mode:
+                    case PlotSummaryMode.PHE:
+                        match global_peak_method:
+                            case PeakMethod.POLY:
+                                txt_list.append("Peak Method: Poly Fit")
+                            case PeakMethod.GAUSS:
+                                txt_list.append("Peak Method: Gauss")
+                        with open(self.text_file_handle, "w+", encoding="utf-8", newline="") as output:
+                            writer = csv.writer(output, delimiter=" ")
+                            writer.writerow(txt_list)
+                txt_list: List[str] = []
                 txt_list.append("File")
                 txt_list.append("Time(Hrs)")
                 for frequency in self.frequency_list:
@@ -4772,6 +4822,9 @@ class TextFileExport():
                         match global_plot_summary_mode:
                             case PlotSummaryMode.PHE:
                                 txt_list.append("PeakHeight_E%d_%dHz" % (electrode, frequency))
+                                match global_peak_method:
+                                    case PeakMethod.GAUSS:
+                                        txt_list.append("PeakLocation_E%d_%dHz" % (electrode, frequency))
                             case PlotSummaryMode.AUC:
                                 txt_list.append("AUC_E%d_%dHz" % (electrode, frequency))
                 if self.electrode_count > 1:
@@ -4800,7 +4853,7 @@ class TextFileExport():
                     if self.electrode_count > 1:
                         txt_list.append("AvgKDM")
                         txt_list.append("KDM_STD")
-                with open(self.text_file_handle, "w+", encoding="utf-8", newline="") as output:
+                with open(self.text_file_handle, "a", encoding="utf-8", newline="") as output:
                     writer = csv.writer(output, delimiter=" ")
                     writer.writerow(txt_list)
             case AnalysisMethod.FREQUENCY_MAP:
@@ -4836,11 +4889,14 @@ class TextFileExport():
         index: int = file - 1
         output_list: List[str] = []
         output_list.append(str(file))
-        output_list.append(str((file*global_sample_rate)/3600))
+        output_list.append(str(global_sample_list[index]))
         #--- Peak Height ---#
         for count in range(len(global_frequency_list)):
             for num in range(global_electrode_count):
                 output_list.append(str(global_data_list[num][count][index]))
+                match global_peak_method:
+                    case PeakMethod.GAUSS:
+                        output_list.append(str(global_peak_list[num][count][index]))
         #--- Avg. Peak Height ---#
         if self.electrode_count > 1:
             for count in range(len(global_frequency_list)):
@@ -4989,13 +5045,16 @@ class TextFileExport():
                 txt_list: List[str] = []
                 #AvgList = [] #not used
                 txt_list.append(str(file))
-                txt_list.append(str((file*global_sample_rate)/3600))
+                txt_list.append(str(global_sample_list[index]))
                 #--- peak height ---#
                 for frequency in self.frequency_list:
                     count = global_frequency_dict[frequency]
                     for electrode in self.electrode_list:
                         num = global_electrode_dict[electrode]
                         txt_list.append(str(global_data_list[num][count][index]))
+                        match global_peak_method:
+                            case PeakMethod.GAUSS:
+                                txt_list.append(str(global_peak_list[num][count][index]))
                 #--- Avg. Peak Height ---#
                 if self.electrode_count > 1:
                     for frequency in self.frequency_list:
@@ -5203,6 +5262,7 @@ global_text_file_export: TextFileExport
 global_file_list: List[int]
 global_animations: List[ElectrochemicalAnimation]
 global_data_list: List[List[List[float]]]
+global_peak_list: List[List[List[float]]]
 global_sample_list: List[float]
 global_normalized_data_list: List[List[List[float]]]
 global_offset_normalized_data_list: List[List[float]]
