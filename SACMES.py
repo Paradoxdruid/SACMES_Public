@@ -10,9 +10,14 @@ Monitor and analyze data from a potentiostat.
 from typing import NoReturn, Tuple, Union, List, Dict, Optional, Sequence, Set, Any
                                     ########################
                                     ### Import Libraries ###
-                                    ########################
+                                    ########################                                   
 import sys
 import os
+match os.name:
+    case 'posix': # Linux/MacOS
+        import fcntl
+    case 'nt': # Windows
+        import msvcrt   
 import time
 import datetime
 import tkinter as tk
@@ -92,7 +97,9 @@ CUTOFF_FREQUENCY: int = 50      ### frequency that separates "low" and "high"
 ###############################
 ### Gauss Method Parameters ###
 ###############################
-global_gauss_peak: float = -0.3
+global_gauss_peak: List[List[float]]
+global_gauss_baseline: List[List[float]]
+global_gauss_maxheight: List[List[float]]
 global_low_gauss_peak: float = -0.3
 global_high_gauss_peak: float = -0.3
 global_low_gauss_baseline: float = 0.1
@@ -117,6 +124,7 @@ global_frequency_warning_label_exists: bool = False
 global_analysis_already_initiated: bool = False
 global_high_already_reset: bool = False    ### If data for high frequencies has been reset
 global_low_already_reset: bool = False      ### If data for low frequencies has been reset
+global_already_reset: bool = False
 global_analysis_complete: bool = False    ### If analysis has completed, begin PostAnalysis
 ##################################
 ### Data Extraction Parameters ###
@@ -206,19 +214,37 @@ def file_is_complete(filename: str) -> bool:
     we check if it is open by any running process. If not,
     we consider that it is complete."""
     #return os.path.exists(filename) and os.path.getsize(filename) > global_byte_limit
-    return True
+    #return True
+    #Trying a new method since psutil.process_iter() takes a long time.
     if os.path.exists(filename):
-        for proc in psutil.process_iter():
-            print("STILL SEARCHING PROCESSES")
-            try:
-                for file in proc.open_files():
-                    if file.path == filename:
-                        #print(f"{filename} open by {proc.pid}")
-                        return False
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-        #print(f"{filename} assumed not open; length={os.path.getsize(filename)}")
-        return True
+        match os.name:
+            case 'posix': # Linux/MacOS
+                try:
+                    with open(filename, 'r+') as f:
+                        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)  # Try locking the file
+                        fcntl.flock(f, fcntl.LOCK_UN)  # Unlock immediately
+                    return True  # Locking succeeded, file is not in use
+                except IOError:
+                    return False # File is locked, wait and retry\
+            case 'nt': # Windows
+                try:
+                    with open(filename, 'r+') as f:
+                        msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)  # Try locking the file
+                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)  # Unlock immediately
+                    return True  # Locking succeeded, file is not in use
+                except OSError:
+                    return False # File is locked, wait and retry\
+        # for proc in psutil.process_iter():
+        #     print("STILL SEARCHING PROCESSES")
+        #     try:
+        #         for file in proc.open_files():
+        #             if file.path == filename:
+        #                 #print(f"{filename} open by {proc.pid}")
+        #                 return False
+        #     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        #         pass
+        # #print(f"{filename} assumed not open; length={os.path.getsize(filename)}")
+        # return True
     else:
         #print(f"{filename} does not exist")
         return False
@@ -497,16 +523,19 @@ class MainWindow(tk.Tk):
         ttk.Label(box3, text="File name pattern:").grid(row=box3_value, column=1)
         box3_value += 1
         self.file_name_pattern_entry = ttk.Entry(box3, width=30, justify="center", font=LARGE_FONT)
-        self.file_name_pattern_entry.insert(tk.END, global_file_name_pattern)
+        #self.file_name_pattern_entry.insert(tk.END, global_file_name_pattern)
+        self.file_name_pattern_entry.insert(tk.END, "<H><1>_<F>Hz__<N>.txt")
         self.file_name_pattern_entry.grid(row=box3_value, column=1)
         box3_value += 1
-        ttk.Label(box3, text="<E> for electrode #").grid(row=box3_value, column=1)
+        ttk.Label(box3, text="<H> for handle input").grid(row=box3_value, column=1)
+        #box3_value += 1
+        #ttk.Label(box3, text="<E> for electrode #").grid(row=box3_value, column=1)
         box3_value += 1
         ttk.Label(box3, text="<F> for frequency").grid(row=box3_value, column=1)
         box3_value += 1
         ttk.Label(box3, text="<N> for file #").grid(row=box3_value, column=1)
-        box3_value += 1
-        ttk.Label(box3, text="For Multichannel <E> is omitted").grid(row=box3_value, column=1)
+        #box3_value += 1
+        #ttk.Label(box3, text="For Multichannel <E> is omitted").grid(row=box3_value, column=1)
         row_value += 1
         ttk.Button(win, text="Apply", command=self.apply_customize_file_format_settings).\
             grid(row=row_value, column=0, pady=6)
@@ -756,8 +785,8 @@ class InputFrame(ttk.Frame):
         self.plot_options.grid(row=row_value+1, column=0, columnspan=2)
         for summary_option in PlotSummaryMode:
             self.plot_options.insert(tk.END, str(summary_option))
-        #--- Select Peak Method---#
-        ttk.Label(self, text="Select Peak Method", font=LARGE_FONT).\
+        #--- Select Fitting Method---#
+        ttk.Label(self, text="Select Fitting Method", font=LARGE_FONT).\
             grid(row=row_value, column=2, columnspan=2)
         self.peak_box = tk.Listbox(self, relief="groove", exportselection=0,\
                                       font=LARGE_FONT, height=len(PeakMethod),\
@@ -1433,6 +1462,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             global_low_xstart_entry,\
             global_high_xend_entry,\
             global_low_xend_entry,\
+            global_xstart_entry,\
+            global_xend_entry,\
             global_high_frequency_entry,\
             global_norm_warning,\
             global_file_label,\
@@ -1545,78 +1576,49 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                 self.smoothing_entry = ttk.Entry(regression_frame, width=10)
                 self.smoothing_entry.grid(row=2, column=0, columnspan=4, pady=3)
                 self.smoothing_entry.insert(tk.END, str(global_savitzky_golay_window))
-                #--- Check for the presence of high and low frequencies ---#
-                self.high = global_frequency_list[-1] > CUTOFF_FREQUENCY
-                self.low = global_frequency_list[0] <= CUTOFF_FREQUENCY
-                ##########################################################
-                ### If a frequency <= cutoff_frequency exists, grid    ###
-                ### a frame for low frequency data manipulation        ###
-                ##########################################################
-                if self.low:
-                    low_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                    low_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                    low_parameter_frame.rowconfigure(0, weight=1)
-                    low_parameter_frame.rowconfigure(1, weight=1)
-                    low_parameter_frame.rowconfigure(2, weight=1)
-                    low_parameter_frame.columnconfigure(0, weight=1)
-                    low_parameter_frame.columnconfigure(1, weight=1)
-                    global_show_frames[FRAME_LOW_PARAMETER] = low_parameter_frame
-                    #--- points discarded at the beginning of the voltammogram, xstart ---#
-                    ttk.Label(low_parameter_frame, text="xstart (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=0)
-                    self.low_xstart_entry = ttk.Entry(low_parameter_frame, width=7)
-                    self.low_xstart_entry.insert(tk.END, str(global_low_xstart))
-                    self.low_xstart_entry.grid(row=1, column=0)
-                    global_low_xstart_entry = self.low_xstart_entry
-                    #--- points discarded at the beginning of the voltammogram, xend ---#
-                    ttk.Label(low_parameter_frame, text="xend (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=1)
-                    self.low_xend_entry = ttk.Entry(low_parameter_frame, width=7)
-                    self.low_xend_entry.insert(tk.END, str(global_low_xend))
-                    self.low_xend_entry.grid(row=1, column=1)
-                    global_low_xend_entry = self.low_xend_entry
-                #########################################################
-                ### If a frequency > cutoff_frequency exists, grid    ###
-                ### a frame for high frequency data manipulation      ###
-                #########################################################
-                if self.high:
-                    high_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                    high_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                    high_parameter_frame.rowconfigure(0, weight=1)
-                    high_parameter_frame.rowconfigure(1, weight=1)
-                    high_parameter_frame.rowconfigure(2, weight=1)
-                    high_parameter_frame.columnconfigure(0, weight=1)
-                    high_parameter_frame.columnconfigure(1, weight=1)
-                    global_show_frames[FRAME_HIGH_PARAMETER] = high_parameter_frame
-                    #--- points discarded at the beginning of the voltammogram, xstart ---#
-                    ttk.Label(high_parameter_frame, text="xstart (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=0)
-                    self.high_xstart_entry = ttk.Entry(high_parameter_frame, width=7)
-                    self.high_xstart_entry.insert(tk.END, str(global_high_xstart))
-                    self.high_xstart_entry.grid(row=1, column=0)
-                    global_high_xstart_entry = self.high_xstart_entry
-                    #--- points discarded at the beginning of the voltammogram, xend ---#
-                    ttk.Label(high_parameter_frame, text="xend (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=1)
-                    self.high_xend_entry = ttk.Entry(high_parameter_frame, width=7)
-                    self.high_xend_entry.insert(tk.END, str(global_high_xend))
-                    self.high_xend_entry.grid(row=1, column=1)
-                    global_high_xend_entry = self.high_xend_entry
-                ############################################################
-                ### If both high and low frequencies are being analyzed, ###
-                ### create buttons to switch between the two             ###
-                ############################################################
-                if self.high and self.low:
-                    self.select_low_parameters =\
-                        ttk.Button(regression_frame, style="Off.TButton",\
-                                text=f"f <= {CUTOFF_FREQUENCY}Hz",\
-                                    command=lambda: self.show_frame(FRAME_LOW_PARAMETER))
-                    self.select_low_parameters.grid(row=4, column=0, pady=5, padx=5)
-                    self.select_high_parameters =\
-                        ttk.Button(regression_frame, style="On.TButton",\
-                                text=f"f > {CUTOFF_FREQUENCY}Hz",\
-                                    command=lambda: self.show_frame(FRAME_HIGH_PARAMETER))
-                    self.select_high_parameters.grid(row=4, column=1, pady=5, padx=5)
+                
+                parameter_frame = [([ttk.Frame]*len(global_frequency_list)) for i in range(global_electrode_count)]
+                self.xstart_entry = [([ttk.Entry]*len(global_frequency_list)) for i in range(global_electrode_count)]
+                self.xend_entry = [([ttk.Entry]*len(global_frequency_list)) for i in range(global_electrode_count)]
+
+                for elec in range(global_electrode_count):
+                    for freq in range(len(global_frequency_list)):
+                        parameter_frame[elec][freq] = ttk.Frame(regression_frame, padding=5)
+                        parameter_frame[elec][freq].grid(row=3, column=0, columnspan=6, sticky="nsew")
+                        parameter_frame[elec][freq].rowconfigure(0, weight=1)
+                        parameter_frame[elec][freq].rowconfigure(1, weight=1)
+                        parameter_frame[elec][freq].rowconfigure(2, weight=1)
+                        parameter_frame[elec][freq].columnconfigure(0, weight=1)
+                        parameter_frame[elec][freq].columnconfigure(1, weight=1)
+                        global_show_frames[f"{elec}{freq}"] = parameter_frame[elec][freq]
+                        #--- points discarded at the beginning of the voltammogram, xstart ---#
+                        ttk.Label(parameter_frame[elec][freq], text="xstart (V)", font=MEDIUM_FONT).\
+                            grid(row=0, column=0)
+                        self.xstart_entry[elec][freq] = ttk.Entry(parameter_frame[elec][freq], width=7)
+                        self.xstart_entry[elec][freq].insert(tk.END, str(global_xstart[elec][freq]))
+                        self.xstart_entry[elec][freq].grid(row=1, column=0)
+                        global_xstart_entry[elec][freq] = self.xstart_entry[elec][freq]
+                        #--- points discarded at the beginning of the voltammogram, xend ---#
+                        ttk.Label(parameter_frame[elec][freq], text="xend (V)", font=MEDIUM_FONT).\
+                            grid(row=0, column=max(1,len(global_frequency_list)-1))
+                        self.xend_entry[elec][freq] = ttk.Entry(parameter_frame[elec][freq], width=7)
+                        self.xend_entry[elec][freq].insert(tk.END, str(global_xend[elec][freq]))
+                        self.xend_entry[elec][freq].grid(row=1, column=max(1,len(global_frequency_list)-1))
+                        global_xend_entry[elec][freq] = self.xend_entry[elec][freq]
+
+                        col = 0
+                        for i in range(len(global_frequency_list)):
+                            if i == freq:
+                                styl = "On.TButton"
+                            else:
+                                styl = "Off.TButton"
+                            frame_str = str(elec)+str(i)
+                            ttk.Button(parameter_frame[elec][freq], style=styl,\
+                                    text=f"{global_frequency_list[i]}Hz-E{global_electrode_list[elec]}",\
+                                        command=lambda frame_str=frame_str: self.show_frame(frame_str)).\
+                                            grid(row=4, column=col)
+                            col += 1
+                self.show_frame("00")
                 #--- Button to apply adjustments ---#
                 self.adjust_parameter_button = ttk.Button(regression_frame, text="Apply",\
                                                         command=self.adjust_parameters)
@@ -1624,92 +1626,162 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             case PeakMethod.GAUSS:
                 ttk.Label(regression_frame, text="Gauss Method", font=MEDIUM_FONT).\
                         grid(row=0, column=0, columnspan=4, pady=5, padx=5)
-                self.high = global_frequency_list[-1] > CUTOFF_FREQUENCY
-                self.low = global_frequency_list[0] <= CUTOFF_FREQUENCY
-                ##########################################################
-                ### If a frequency <= cutoff_frequency exists, grid    ###
-                ### a frame for low frequency data manipulation        ###
-                ##########################################################
-                if self.low:
-                    low_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                    low_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                    low_parameter_frame.rowconfigure(0, weight=1)
-                    low_parameter_frame.rowconfigure(1, weight=1)
-                    low_parameter_frame.rowconfigure(2, weight=1)
-                    low_parameter_frame.columnconfigure(0, weight=1)
-                    low_parameter_frame.columnconfigure(1, weight=1)
-                    low_parameter_frame.columnconfigure(2, weight=1)  
-                    global_show_frames[FRAME_LOW_PARAMETER] = low_parameter_frame
-                    #--- peak location of the voltammogram ---#
-                    ttk.Label(low_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=0)
-                    self.low_gauss_peak_entry = ttk.Entry(low_parameter_frame, width=7)
-                    self.low_gauss_peak_entry.insert(tk.END, str(global_low_gauss_peak))
-                    self.low_gauss_peak_entry.grid(row=1, column=0)
-                    #--- baseline of the voltammogram ---#
-                    ttk.Label(low_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
-                        grid(row=0, column=1)
-                    self.low_gauss_baseline_entry = ttk.Entry(low_parameter_frame, width=7)
-                    self.low_gauss_baseline_entry.insert(tk.END, str(global_low_gauss_baseline))
-                    self.low_gauss_baseline_entry.grid(row=1, column=1)
-                    #--- max peak height of the voltammogram ---#
-                    ttk.Label(low_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
-                        grid(row=0, column=2)
-                    self.low_gauss_maxheight_entry = ttk.Entry(low_parameter_frame, width=7)
-                    self.low_gauss_maxheight_entry.insert(tk.END, str(global_low_gauss_maxheight))
-                    self.low_gauss_maxheight_entry.grid(row=1, column=2)
-                #########################################################
-                ### If a frequency > cutoff_frequency exists, grid    ###
-                ### a frame for high frequency data manipulation      ###
-                #########################################################
-                if self.high:
-                    high_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                    high_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                    high_parameter_frame.rowconfigure(0, weight=1)
-                    high_parameter_frame.rowconfigure(1, weight=1)
-                    high_parameter_frame.rowconfigure(2, weight=1)
-                    high_parameter_frame.columnconfigure(0, weight=1)
-                    high_parameter_frame.columnconfigure(1, weight=1)
-                    high_parameter_frame.columnconfigure(2, weight=1)
-                    global_show_frames[FRAME_HIGH_PARAMETER] = high_parameter_frame
-                    #--- points discarded at the beginning of the voltammogram, xstart ---#
-                    ttk.Label(high_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
-                        grid(row=0, column=0)
-                    self.high_gauss_peak_entry = ttk.Entry(high_parameter_frame, width=7)
-                    self.high_gauss_peak_entry.insert(tk.END, str(global_high_gauss_peak))
-                    self.high_gauss_peak_entry.grid(row=1, column=0)
-                    #global_high_xstart_entry = self.high_xstart_entry
-                    #--- points discarded at the beginning of the voltammogram, xend ---#
-                    ttk.Label(high_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
-                        grid(row=0, column=1)
-                    self.high_gauss_baseline_entry = ttk.Entry(high_parameter_frame, width=7)
-                    self.high_gauss_baseline_entry.insert(tk.END, str(global_high_gauss_baseline))
-                    self.high_gauss_baseline_entry.grid(row=1, column=1)
-                    #--- max peak height of the voltammogram ---#
-                    ttk.Label(high_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
-                        grid(row=0, column=2)
-                    self.high_gauss_maxheight_entry = ttk.Entry(high_parameter_frame, width=7)
-                    self.high_gauss_maxheight_entry.insert(tk.END, str(global_high_gauss_maxheight))
-                    self.high_gauss_maxheight_entry.grid(row=1, column=2)
-                ############################################################
-                ### If both high and low frequencies are being analyzed, ###
-                ### create buttons to switch between the two             ###
-                ############################################################
-                if self.high and self.low:
-                    self.select_low_parameters =\
-                        ttk.Button(regression_frame, style="Off.TButton",\
-                                text=f"f <= {CUTOFF_FREQUENCY}Hz",\
-                                    command=lambda: self.show_frame(FRAME_LOW_PARAMETER))
-                    self.select_low_parameters.grid(row=4, column=0, pady=5, padx=5)
-                    self.select_high_parameters =\
-                        ttk.Button(regression_frame, style="On.TButton",\
-                                text=f"f > {CUTOFF_FREQUENCY}Hz",\
-                                    command=lambda: self.show_frame(FRAME_HIGH_PARAMETER))
-                    self.select_high_parameters.grid(row=4, column=1, pady=5, padx=5)
+                
+                parameter_frame = [([ttk.Frame]*len(global_frequency_list)) for i in range(global_electrode_count)]
+                self.gauss_peak_entry = [([ttk.Entry]*len(global_frequency_list)) for i in range(global_electrode_count)]
+                self.gauss_baseline_entry = [([ttk.Entry]*len(global_frequency_list)) for i in range(global_electrode_count)]
+                self.gauss_maxheight_entry = [([ttk.Entry]*len(global_frequency_list)) for i in range(global_electrode_count)]
+
+                for elec in range(global_electrode_count):
+                    for freq in range(len(global_frequency_list)):
+                        parameter_frame[elec][freq] = ttk.Frame(regression_frame, padding=5)
+                        parameter_frame[elec][freq].grid(row=3, column=0, columnspan=6, sticky="nsew")
+                        parameter_frame[elec][freq].rowconfigure(0, weight=1)
+                        parameter_frame[elec][freq].rowconfigure(1, weight=1)
+                        parameter_frame[elec][freq].rowconfigure(2, weight=1)
+                        parameter_frame[elec][freq].columnconfigure(0, weight=1)
+                        parameter_frame[elec][freq].columnconfigure(1, weight=1)
+                        global_show_frames[f"{elec}{freq}"] = parameter_frame[elec][freq]
+                        #     #--- peak location of the voltammogram ---#
+                        #     ttk.Label(low_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
+                        #         grid(row=0, column=0)
+                        #     self.low_gauss_peak_entry = ttk.Entry(low_parameter_frame, width=7)
+                        #     self.low_gauss_peak_entry.insert(tk.END, str(global_low_gauss_peak))
+                        #     self.low_gauss_peak_entry.grid(row=1, column=0)
+                        #     #--- baseline of the voltammogram ---#
+                        #     ttk.Label(low_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
+                        #         grid(row=0, column=1)
+                        #     self.low_gauss_baseline_entry = ttk.Entry(low_parameter_frame, width=7)
+                        #     self.low_gauss_baseline_entry.insert(tk.END, str(global_low_gauss_baseline))
+                        #     self.low_gauss_baseline_entry.grid(row=1, column=1)
+                        #     #--- max peak height of the voltammogram ---#
+                        #     ttk.Label(low_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
+                        #         grid(row=0, column=2)
+                        #     self.low_gauss_maxheight_entry = ttk.Entry(low_parameter_frame, width=7)
+                        #     self.low_gauss_maxheight_entry.insert(tk.END, str(global_low_gauss_maxheight))
+                        #     self.low_gauss_maxheight_entry.grid(row=1, column=2)
+                        #--- peak location of the voltammogram ---#
+                        ttk.Label(parameter_frame[elec][freq], text="Exp. Peak Location (V)", font=MEDIUM_FONT).\
+                            grid(row=0, column=0)
+                        self.gauss_peak_entry[elec][freq] = ttk.Entry(parameter_frame[elec][freq], width=7)
+                        self.gauss_peak_entry[elec][freq].insert(tk.END, str(global_gauss_peak[elec][freq]))
+                        self.gauss_peak_entry[elec][freq].grid(row=1, column=0)
+                        #--- baseline of the voltammogram ---#
+                        ttk.Label(parameter_frame[elec][freq], text="Exp. Baseline (uA)", font=MEDIUM_FONT).\
+                            grid(row=0, column=1)
+                        self.gauss_baseline_entry[elec][freq] = ttk.Entry(parameter_frame[elec][freq], width=7)
+                        self.gauss_baseline_entry[elec][freq].insert(tk.END, str(global_gauss_baseline[elec][freq]))
+                        self.gauss_baseline_entry[elec][freq].grid(row=1, column=1)
+                        #--- max peak height of the voltammogram ---#
+                        ttk.Label(parameter_frame[elec][freq], text="Exp. Max Peak Height (uA)", font=MEDIUM_FONT).\
+                            grid(row=0, column=2)
+                        self.gauss_maxheight_entry[elec][freq] = ttk.Entry(parameter_frame[elec][freq], width=7)
+                        self.gauss_maxheight_entry[elec][freq].insert(tk.END, str(global_gauss_maxheight[elec][freq]))
+                        self.gauss_maxheight_entry[elec][freq].grid(row=1, column=2)
+
+                        col = 0
+                        for i in range(len(global_frequency_list)):
+                            if i == freq:
+                                styl = "On.TButton"
+                            else:
+                                styl = "Off.TButton"
+                            frame_str = str(elec)+str(i)
+                            ttk.Button(parameter_frame[elec][freq], style=styl,\
+                                    text=f"{global_frequency_list[i]}Hz-E{global_electrode_list[elec]}",\
+                                        command=lambda frame_str=frame_str: self.show_frame(frame_str)).\
+                                            grid(row=4, column=col)
+                            col += 1
+                self.show_frame("00")
                 #--- Button to apply adjustments ---#
                 self.adjust_parameter_button = ttk.Button(regression_frame, text="Apply",\
                                                         command=self.adjust_parameters)
                 self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
+                # self.high = global_frequency_list[-1] > CUTOFF_FREQUENCY
+                # self.low = global_frequency_list[0] <= CUTOFF_FREQUENCY
+                # ##########################################################
+                # ### If a frequency <= cutoff_frequency exists, grid    ###
+                # ### a frame for low frequency data manipulation        ###
+                # ##########################################################
+                # if self.low:
+                #     low_parameter_frame = ttk.Frame(regression_frame, padding=5)
+                #     low_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
+                #     low_parameter_frame.rowconfigure(0, weight=1)
+                #     low_parameter_frame.rowconfigure(1, weight=1)
+                #     low_parameter_frame.rowconfigure(2, weight=1)
+                #     low_parameter_frame.columnconfigure(0, weight=1)
+                #     low_parameter_frame.columnconfigure(1, weight=1)
+                #     low_parameter_frame.columnconfigure(2, weight=1)  
+                #     global_show_frames[FRAME_LOW_PARAMETER] = low_parameter_frame
+                #     #--- peak location of the voltammogram ---#
+                #     ttk.Label(low_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=0)
+                #     self.low_gauss_peak_entry = ttk.Entry(low_parameter_frame, width=7)
+                #     self.low_gauss_peak_entry.insert(tk.END, str(global_low_gauss_peak))
+                #     self.low_gauss_peak_entry.grid(row=1, column=0)
+                #     #--- baseline of the voltammogram ---#
+                #     ttk.Label(low_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=1)
+                #     self.low_gauss_baseline_entry = ttk.Entry(low_parameter_frame, width=7)
+                #     self.low_gauss_baseline_entry.insert(tk.END, str(global_low_gauss_baseline))
+                #     self.low_gauss_baseline_entry.grid(row=1, column=1)
+                #     #--- max peak height of the voltammogram ---#
+                #     ttk.Label(low_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=2)
+                #     self.low_gauss_maxheight_entry = ttk.Entry(low_parameter_frame, width=7)
+                #     self.low_gauss_maxheight_entry.insert(tk.END, str(global_low_gauss_maxheight))
+                #     self.low_gauss_maxheight_entry.grid(row=1, column=2)
+                # #########################################################
+                # ### If a frequency > cutoff_frequency exists, grid    ###
+                # ### a frame for high frequency data manipulation      ###
+                # #########################################################
+                # if self.high:
+                #     high_parameter_frame = ttk.Frame(regression_frame, padding=5)
+                #     high_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
+                #     high_parameter_frame.rowconfigure(0, weight=1)
+                #     high_parameter_frame.rowconfigure(1, weight=1)
+                #     high_parameter_frame.rowconfigure(2, weight=1)
+                #     high_parameter_frame.columnconfigure(0, weight=1)
+                #     high_parameter_frame.columnconfigure(1, weight=1)
+                #     high_parameter_frame.columnconfigure(2, weight=1)
+                #     global_show_frames[FRAME_HIGH_PARAMETER] = high_parameter_frame
+                #     #--- points discarded at the beginning of the voltammogram, xstart ---#
+                #     ttk.Label(high_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=0)
+                #     self.high_gauss_peak_entry = ttk.Entry(high_parameter_frame, width=7)
+                #     self.high_gauss_peak_entry.insert(tk.END, str(global_high_gauss_peak))
+                #     self.high_gauss_peak_entry.grid(row=1, column=0)
+                #     #global_high_xstart_entry = self.high_xstart_entry
+                #     #--- points discarded at the beginning of the voltammogram, xend ---#
+                #     ttk.Label(high_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=1)
+                #     self.high_gauss_baseline_entry = ttk.Entry(high_parameter_frame, width=7)
+                #     self.high_gauss_baseline_entry.insert(tk.END, str(global_high_gauss_baseline))
+                #     self.high_gauss_baseline_entry.grid(row=1, column=1)
+                #     #--- max peak height of the voltammogram ---#
+                #     ttk.Label(high_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
+                #         grid(row=0, column=2)
+                #     self.high_gauss_maxheight_entry = ttk.Entry(high_parameter_frame, width=7)
+                #     self.high_gauss_maxheight_entry.insert(tk.END, str(global_high_gauss_maxheight))
+                #     self.high_gauss_maxheight_entry.grid(row=1, column=2)
+                # ############################################################
+                # ### If both high and low frequencies are being analyzed, ###
+                # ### create buttons to switch between the two             ###
+                # ############################################################
+                # if self.high and self.low:
+                #     self.select_low_parameters =\
+                #         ttk.Button(regression_frame, style="Off.TButton",\
+                #                 text=f"f <= {CUTOFF_FREQUENCY}Hz",\
+                #                     command=lambda: self.show_frame(FRAME_LOW_PARAMETER))
+                #     self.select_low_parameters.grid(row=4, column=0, pady=5, padx=5)
+                #     self.select_high_parameters =\
+                #         ttk.Button(regression_frame, style="On.TButton",\
+                #                 text=f"f > {CUTOFF_FREQUENCY}Hz",\
+                #                     command=lambda: self.show_frame(FRAME_HIGH_PARAMETER))
+                #     self.select_high_parameters.grid(row=4, column=1, pady=5, padx=5)
+                #--- Button to apply adjustments ---#
+                #self.adjust_parameter_button = ttk.Button(regression_frame, text="Apply",\
+                #                                        command=self.adjust_parameters)
+                #self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
         self.x_axis_control_left = tk.IntVar()
         self.x_axis_control_left.set(XBound.START_PLUS.value)
         self.x_axis_control_right = tk.IntVar()
@@ -1821,7 +1893,7 @@ class ContinuousScanManipulationFrame(ttk.Frame):
         for _ in global_plot_values:
             ttk.Button(self, text=global_frame_list[frame_value],\
                        command=lambda frame_value=frame_value:\
-                        self.show_plot(global_plot_values[frame_value])).\
+                        self.show_plot(global_plot_values[frame_value],frame_value)).\
                             grid(row=row_value, column=column_value, pady=2, padx=5)
             ## allows .grid() to alternate between
             ## packing into column 1 and column 2
@@ -1872,41 +1944,45 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             global_high_xstart,\
             global_low_xend,\
             global_high_xend,\
+            global_xstart,\
+            global_xend,\
             global_savitzky_golay_window,\
             global_low_gauss_peak,\
             global_high_gauss_peak,\
+            global_gauss_peak,\
             global_low_gauss_baseline,\
             global_high_gauss_baseline,\
+            global_gauss_baseline,\
             global_low_gauss_maxheight,\
-            global_high_gauss_maxheight
+            global_high_gauss_maxheight,\
+            global_gauss_maxheight
         match global_peak_method:
             case PeakMethod.POLY:
                 ###############################################
                 ### Polynomial Regression Range Parameters ###
                 ###############################################
-                if self.low:
-                    #--- parameters for frequencies equal or below cutoff_frequency ---#
-                    # xstart/xend adjust the points at the start and end
-                    # of the voltammogram/smoothed currents, respectively
-                    global_low_xstart = float(self.low_xstart_entry.get())
-                    global_low_xend = float(self.low_xend_entry.get())
-                if self.high:
-                    #--- parameters for frequencies above cutoff_frequency ---#
-                    global_high_xstart = float(self.high_xstart_entry.get())
-                    global_high_xend = float(self.high_xend_entry.get())
+                for elec in range(global_electrode_count):
+                    for freq in range(len(global_frequency_list)):
+                        global_xstart[elec][freq] = float(self.xstart_entry[elec][freq].get())
+                        global_xend[elec][freq] = float(self.xend_entry[elec][freq].get())
                 #######################################
                 ### Savitzky-Golay Smoothing Window ###
                 #######################################
                 global_savitzky_golay_window = float(self.smoothing_entry.get())
             case PeakMethod.GAUSS:
-                if self.low:
-                    global_low_gauss_peak = float(self.low_gauss_peak_entry.get())
-                    global_low_gauss_baseline = float(self.low_gauss_baseline_entry.get())
-                    global_low_gauss_maxheight = float(self.low_gauss_maxheight_entry.get())
-                if self.high:
-                    global_high_gauss_peak = float(self.high_gauss_peak_entry.get())
-                    global_high_gauss_baseline = float(self.high_gauss_baseline_entry.get())
-                    global_high_gauss_maxheight = float(self.high_gauss_maxheight_entry.get())
+                for elec in range(global_electrode_count):
+                    for freq in range(len(global_frequency_list)):
+                        global_gauss_peak[elec][freq] = float(self.gauss_peak_entry[elec][freq].get())
+                        global_gauss_baseline[elec][freq] = float(self.gauss_baseline_entry[elec][freq].get())
+                        global_gauss_maxheight[elec][freq] = float(self.gauss_maxheight_entry[elec][freq].get())
+                # if self.low:
+                #     global_low_gauss_peak = float(self.low_gauss_peak_entry.get())
+                #     global_low_gauss_baseline = float(self.low_gauss_baseline_entry.get())
+                #     global_low_gauss_maxheight = float(self.low_gauss_maxheight_entry.get())
+                # if self.high:
+                #     global_high_gauss_peak = float(self.high_gauss_peak_entry.get())
+                #     global_high_gauss_baseline = float(self.high_gauss_baseline_entry.get())
+                #     global_high_gauss_maxheight = float(self.high_gauss_maxheight_entry.get())
 
     #########################################################
     ### Real-time adjustment of High and Low frequencies  ###
@@ -1993,17 +2069,16 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             global_analysis_already_initiated,\
             global_low_already_reset,\
             global_high_already_reset,\
+            global_already_reset,\
             global_x_left_bound_radiobutton,\
             global_x_left_bound_offset,\
             global_x_right_bound_radiobutton,\
-            global_x_right_bound_offset
+            global_x_right_bound_offset,\
+            global_gauss_solver
         global_key = 0
         global_poison_pill = True
         global_analysis_already_initiated = False # reset the start variable
-        if self.high:
-            global_high_already_reset = True
-        if self.low:
-            global_low_already_reset = True
+        global_already_reset = True
         # Raise the initial user input frame
         self.show_frame(FRAME_INPUT)
         self.close_frame(str(global_analysis_method))
@@ -2020,12 +2095,6 @@ class ContinuousScanManipulationFrame(ttk.Frame):
         """Raise the frame to the front of the canvas."""
         frame = global_show_frames[cont]
         frame.tkraise()
-        if cont == FRAME_LOW_PARAMETER:
-            self.select_low_parameters.config(style="On.TButton")
-            self.select_high_parameters.config(style="Off.TButton")
-        elif cont == FRAME_HIGH_PARAMETER:
-            self.select_low_parameters.config(style="Off.TButton")
-            self.select_high_parameters.config(style="On.TButton")
 
     def skeleton_key(self) -> None:
         """Start the data analysis and visualization."""
@@ -2053,9 +2122,10 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             if global_key == 0:
                 global_key += 100
 
-    def show_plot(self, frame) -> None:
+    def show_plot(self, frame,frame_value) -> None:
         """Raise the frame for the specific electrode to the front of the canvas."""
         frame.tkraise()
+        self.show_frame(f"{frame_value}0")
 
     def close_frame(self, cont: str) -> None:
         """Destroy the frame."""
@@ -2521,7 +2591,14 @@ class InitializeContinuousCanvas():
             global_plot_frames,\
             global_plot_values,\
             global_gauss_solver,\
-            global_peak_list
+            global_peak_list,\
+            global_xstart,\
+            global_xend,\
+            global_xstart_entry,\
+            global_xend_entry,\
+            global_gauss_peak,\
+            global_gauss_baseline,\
+            global_gauss_maxheight        
         ##############################################
         ### Generate global lists for data storage ###
         ##############################################
@@ -2534,8 +2611,17 @@ class InitializeContinuousCanvas():
         ############################################
         ### Create global lists for data storage ###
         ############################################
-        # gauss method solver:
+        # xstart xend
+        global_xstart = [[0.0]]*global_electrode_count
+        global_xend = [[0.0]]*global_electrode_count
+        global_xstart_entry = [[0.0]]*global_electrode_count
+        global_xend_entry = [[0.0]]*global_electrode_count
+        # gauss method solver
         global_gauss_solver = []
+        # gauss peak, baseline, maxheight
+        global_gauss_peak = [[-0.3]]*global_electrode_count
+        global_gauss_baseline = [[0.3]]*global_electrode_count
+        global_gauss_maxheight = [[5.0]]*global_electrode_count
         # gauss peak location
         global_peak_list = [[[0.0]]]*global_electrode_count
         # Peak Height/AUC data (after smoothing and polynomial regression or gauss method):
@@ -2550,8 +2636,18 @@ class InitializeContinuousCanvas():
         # to hold the data for kinetic differential measurements:
         global_kdm_list = []
         for num in range(global_electrode_count):
-            # a data list for each electrode:
+            # xstart xend
+            global_xstart[num] = [0.0]*self.length
+            global_xend[num] = [0.0]*self.length
+            global_xstart_entry[num] = [0.0]*self.length
+            global_xend_entry[num] = [0.0]*self.length
+            # gauss peak, baseline, maxheight
+            global_gauss_peak[num] = [-0.3]*self.length
+            global_gauss_baseline[num] = [0.3]*self.length
+            global_gauss_maxheight[num] = [5.0]*self.length
+            # gauss peak location
             global_peak_list[num] = [[0.0]]*self.length
+            # a data list for each electrode:
             global_data_list[num] = [[0.0]]*self.length
             global_normalized_data_list[num] = [[0.0]]*self.length
             global_offset_normalized_data_list[num] = [0.0]*global_number_of_files_to_process
@@ -2805,6 +2901,8 @@ class InitializeContinuousCanvas():
             global_high_xend,\
             global_low_xstart,\
             global_low_xend,\
+            global_xstart,\
+            global_xend,\
             global_gauss_solver
         
         try:
@@ -2822,20 +2920,12 @@ class InitializeContinuousCanvas():
             #######################################
             ### Get the high and low potentials ###
             #######################################
-            if frequency > CUTOFF_FREQUENCY:
-                if not global_high_already_reset:
-                    global_high_xstart = max(potentials)
-                    global_high_xend = min(potentials)
-                #-- set the local variables to the global ---#
-                xend = global_high_xend
-                xstart = global_high_xstart
-            else:
-                if not global_low_already_reset:
-                    global_low_xstart = max(potentials)
-                    global_low_xend = min(potentials)
-                #-- set the local variables to the global ---#
-                xstart = global_low_xstart
-                xend = global_low_xend
+            # if not global_already_reset:
+            global_xstart[global_electrode_dict[electrode]][global_frequency_dict[frequency]] = max(potentials)
+            global_xend[global_electrode_dict[electrode]][global_frequency_dict[frequency]] = min(potentials)
+            xstart = global_xstart[global_electrode_dict[electrode]][global_frequency_dict[frequency]]
+            xend = global_xend[global_electrode_dict[electrode]][global_frequency_dict[frequency]]
+
             cut_value = 0
             for value in potentials:
                 if abs(value) < EPSILON:
@@ -3420,9 +3510,7 @@ class ElectrochemicalAnimation():
     ## callback that is called every 'interval' ms ##
     def _step(self) -> None:
         """Perform the next iteration of the animation."""
-        if self.file not in self.file_list:
-            self.file_list.append(self.file)
-            self.sample_list.append(get_time(len(self.file_list)))
+        
         frequency = int(global_frequency_list[self.count])
         match global_analysis_method:
             case AnalysisMethod.CONTINUOUS_SCAN:
@@ -3433,9 +3521,13 @@ class ElectrochemicalAnimation():
                 filename = make_file_name(self.file, self.electrode, frequency)
                 myfile = global_file_path + filename
         if file_is_complete(myfile):
+            if self.file not in self.file_list:
+                self.file_list.append(self.file)
+                self.sample_list.append(get_time(len(self.file_list)))
             global_queue.put(lambda: self._run_analysis(myfile, frequency))
         else:
             if not global_poison_pill:
+                print("Waiting for the next File")
                 root.after(100, self._step)
 
     def _run_analysis(self, myfile: str, frequency: int) -> None:
@@ -3524,19 +3616,24 @@ class ElectrochemicalAnimation():
         ### Polynomial Regression or Gauss Range (V) ###
         ################################################
         #--- if the frequency is equal or below cutoff_frequency, use the low freq parameters ---#
-        if frequency <= CUTOFF_FREQUENCY:
-            xstart = global_low_xstart
-            xend = global_low_xend
-            gauss_peak = global_low_gauss_peak
-            gauss_baseline = global_low_gauss_baseline
-            gauss_maxheight = global_low_gauss_maxheight
-        #--- if the frequency is above cutoff_frequency, use the high freq parameters ---#
-        else:
-            xstart = global_high_xstart
-            xend = global_high_xend
-            gauss_peak = global_high_gauss_peak
-            gauss_baseline = global_high_gauss_baseline
-            gauss_maxheight = global_high_gauss_maxheight
+        xstart = global_xstart[self.num][self.count]
+        xend = global_xend[self.num][self.count]
+        gauss_peak = global_gauss_peak[self.num][self.count]
+        gauss_baseline = global_gauss_baseline[self.num][self.count]
+        gauss_maxheight = global_gauss_maxheight[self.num][self.count]
+        # if frequency <= CUTOFF_FREQUENCY:
+        #     # xstart = global_low_xstart
+        #     # xend = global_low_xend
+        #     gauss_peak = global_low_gauss_peak
+        #     gauss_baseline = global_low_gauss_baseline
+        #     gauss_maxheight = global_low_gauss_maxheight
+        # #--- if the frequency is above cutoff_frequency, use the high freq parameters ---#
+        # else:
+        #     # xstart = global_high_xstart
+        #     # xend = global_high_xend
+        #     gauss_peak = global_high_gauss_peak
+        #     gauss_baseline = global_high_gauss_baseline
+        #     gauss_maxheight = global_high_gauss_maxheight
         ###################################
         ### Retrieve data from the File ###
         ###################################
@@ -3598,7 +3695,7 @@ class ElectrochemicalAnimation():
                 ### Polynomial Regression ###
                 #############################
                 eval_regress: List[float] = np.polyval(polynomial_coeffs, adjusted_potentials).tolist()
-                center_regress: List[float] = eval_regress # Empty because reserved for Gauss Method
+                center_regress: List[float] = eval_regress # Copy of polynomial fit because reserved for Gauss Method
                 ###############################################
                 ### Absolute Max/Min Peak Height Extraction ###
                 ###############################################
@@ -3717,14 +3814,16 @@ class ElectrochemicalAnimation():
                 ##################################
                 auc_index = 1
                 auc: float = 0
+                auc_potentials = adjusted_potentials
                 match global_peak_method:
                     case PeakMethod.POLY: 
-                        auc_potentials = adjusted_potentials
-                    case PeakMethod.GAUSS: 
-                        auc_potentials = eval_regress # TODO:check if this is the correct one
-                #--- Find the minimum value and normalize it to 0 ---#
-                auc_min = min(adjusted_currents)
-                auc_currents = [y - auc_min for y in adjusted_currents]
+                        #--- Find the minimum value and normalize it to 0 ---#
+                        auc_min = min(adjusted_currents)
+                        auc_currents = [y - auc_min for y in adjusted_currents]
+                    case PeakMethod.GAUSS:
+                        #--- Find the minimum value and normalize it to 0 ---# 
+                        auc_min = min(eval_regress)
+                        auc_currents = [y - auc_min for y in eval_regress]
                 #--- Midpoint Riemann Sum ---#
                 while auc_index <= len(auc_currents) - 1:
                     auc_height = (auc_currents[auc_index] + auc_currents[auc_index - 1])/2
@@ -4682,6 +4781,7 @@ class PostAnalysis(ttk.Frame):
         """Reset the experiment."""
         global global_high_already_reset,\
             global_low_already_reset,\
+            global_already_reset,\
             global_analysis_already_initiated,\
             global_poison_pill,\
             global_key,\
@@ -4693,10 +4793,7 @@ class PostAnalysis(ttk.Frame):
         global_key = 0
         global_poison_pill = True
         global_analysis_already_initiated = False # reset the start variable
-        if self.high:
-            global_high_already_reset = True
-        if self.low:
-            global_low_already_reset = True
+        global_already_reset = True
         # Raise the initial user input frame
         self.show_frame(FRAME_INPUT)
         self.close_frame(FRAME_POST_ANALYSIS)
@@ -5234,16 +5331,20 @@ global_electrode_dict: Dict[int, int]
 global_frequency_list: List[int]
 global_frequency_dict: Dict[int, int]
 global_resize_interval: int
-global_high_xstart_entry: ttk.Entry
-global_low_xstart_entry: ttk.Entry
-global_high_xend_entry: ttk.Entry
-global_low_xend_entry: ttk.Entry
+global_high_xstart_entry: ttk.Entry # delete once freq. map is fixed
+global_low_xstart_entry: ttk.Entry # delete once freq. map is fixed
+global_high_xend_entry: ttk.Entry # delete once freq. map is fixed
+global_low_xend_entry: ttk.Entry # delete once freq. map is fixed
+global_xstart_entry: List[List[ttk.Entry]]
+global_xend_entry: List[List[ttk.Entry]]
 global_high_frequency_entry: ttk.Entry
 global_normalization_var: tk.StringVar
-global_high_xstart: float
-global_low_xstart: float
-global_high_xend: float
-global_low_xend: float
+global_high_xstart: float # delete once freq. map is fixed
+global_low_xstart: float # delete once freq. map is fixed
+global_high_xend: float # delete once freq. map is fixed
+global_low_xend: float # delete once freq. map is fixed
+global_xstart: List[List[float]]
+global_xend: List[List[float]]
 global_wrong_frequency_label: ttk.Label
 global_plot_list_continuous_scan: List[List[Tuple[matplotlib.lines.Line2D,\
                                                     matplotlib.lines.Line2D,\
