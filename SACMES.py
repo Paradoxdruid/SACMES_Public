@@ -1642,24 +1642,6 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         parameter_frame[elec][freq].columnconfigure(0, weight=1)
                         parameter_frame[elec][freq].columnconfigure(1, weight=1)
                         global_show_frames[f"{elec}{freq}"] = parameter_frame[elec][freq]
-                        #     #--- peak location of the voltammogram ---#
-                        #     ttk.Label(low_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
-                        #         grid(row=0, column=0)
-                        #     self.low_gauss_peak_entry = ttk.Entry(low_parameter_frame, width=7)
-                        #     self.low_gauss_peak_entry.insert(tk.END, str(global_low_gauss_peak))
-                        #     self.low_gauss_peak_entry.grid(row=1, column=0)
-                        #     #--- baseline of the voltammogram ---#
-                        #     ttk.Label(low_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
-                        #         grid(row=0, column=1)
-                        #     self.low_gauss_baseline_entry = ttk.Entry(low_parameter_frame, width=7)
-                        #     self.low_gauss_baseline_entry.insert(tk.END, str(global_low_gauss_baseline))
-                        #     self.low_gauss_baseline_entry.grid(row=1, column=1)
-                        #     #--- max peak height of the voltammogram ---#
-                        #     ttk.Label(low_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
-                        #         grid(row=0, column=2)
-                        #     self.low_gauss_maxheight_entry = ttk.Entry(low_parameter_frame, width=7)
-                        #     self.low_gauss_maxheight_entry.insert(tk.END, str(global_low_gauss_maxheight))
-                        #     self.low_gauss_maxheight_entry.grid(row=1, column=2)
                         #--- peak location of the voltammogram ---#
                         ttk.Label(parameter_frame[elec][freq], text="Exp. Peak Location (V)", font=MEDIUM_FONT).\
                             grid(row=0, column=0)
@@ -1696,92 +1678,7 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                 self.adjust_parameter_button = ttk.Button(regression_frame, text="Apply",\
                                                         command=self.adjust_parameters)
                 self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
-                # self.high = global_frequency_list[-1] > CUTOFF_FREQUENCY
-                # self.low = global_frequency_list[0] <= CUTOFF_FREQUENCY
-                # ##########################################################
-                # ### If a frequency <= cutoff_frequency exists, grid    ###
-                # ### a frame for low frequency data manipulation        ###
-                # ##########################################################
-                # if self.low:
-                #     low_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                #     low_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                #     low_parameter_frame.rowconfigure(0, weight=1)
-                #     low_parameter_frame.rowconfigure(1, weight=1)
-                #     low_parameter_frame.rowconfigure(2, weight=1)
-                #     low_parameter_frame.columnconfigure(0, weight=1)
-                #     low_parameter_frame.columnconfigure(1, weight=1)
-                #     low_parameter_frame.columnconfigure(2, weight=1)  
-                #     global_show_frames[FRAME_LOW_PARAMETER] = low_parameter_frame
-                #     #--- peak location of the voltammogram ---#
-                #     ttk.Label(low_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=0)
-                #     self.low_gauss_peak_entry = ttk.Entry(low_parameter_frame, width=7)
-                #     self.low_gauss_peak_entry.insert(tk.END, str(global_low_gauss_peak))
-                #     self.low_gauss_peak_entry.grid(row=1, column=0)
-                #     #--- baseline of the voltammogram ---#
-                #     ttk.Label(low_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=1)
-                #     self.low_gauss_baseline_entry = ttk.Entry(low_parameter_frame, width=7)
-                #     self.low_gauss_baseline_entry.insert(tk.END, str(global_low_gauss_baseline))
-                #     self.low_gauss_baseline_entry.grid(row=1, column=1)
-                #     #--- max peak height of the voltammogram ---#
-                #     ttk.Label(low_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=2)
-                #     self.low_gauss_maxheight_entry = ttk.Entry(low_parameter_frame, width=7)
-                #     self.low_gauss_maxheight_entry.insert(tk.END, str(global_low_gauss_maxheight))
-                #     self.low_gauss_maxheight_entry.grid(row=1, column=2)
-                # #########################################################
-                # ### If a frequency > cutoff_frequency exists, grid    ###
-                # ### a frame for high frequency data manipulation      ###
-                # #########################################################
-                # if self.high:
-                #     high_parameter_frame = ttk.Frame(regression_frame, padding=5)
-                #     high_parameter_frame.grid(row=3, column=0, columnspan=4, sticky="nsew")
-                #     high_parameter_frame.rowconfigure(0, weight=1)
-                #     high_parameter_frame.rowconfigure(1, weight=1)
-                #     high_parameter_frame.rowconfigure(2, weight=1)
-                #     high_parameter_frame.columnconfigure(0, weight=1)
-                #     high_parameter_frame.columnconfigure(1, weight=1)
-                #     high_parameter_frame.columnconfigure(2, weight=1)
-                #     global_show_frames[FRAME_HIGH_PARAMETER] = high_parameter_frame
-                #     #--- points discarded at the beginning of the voltammogram, xstart ---#
-                #     ttk.Label(high_parameter_frame, text="Expected Peak Location (V)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=0)
-                #     self.high_gauss_peak_entry = ttk.Entry(high_parameter_frame, width=7)
-                #     self.high_gauss_peak_entry.insert(tk.END, str(global_high_gauss_peak))
-                #     self.high_gauss_peak_entry.grid(row=1, column=0)
-                #     #global_high_xstart_entry = self.high_xstart_entry
-                #     #--- points discarded at the beginning of the voltammogram, xend ---#
-                #     ttk.Label(high_parameter_frame, text="Expected Baseline (uA)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=1)
-                #     self.high_gauss_baseline_entry = ttk.Entry(high_parameter_frame, width=7)
-                #     self.high_gauss_baseline_entry.insert(tk.END, str(global_high_gauss_baseline))
-                #     self.high_gauss_baseline_entry.grid(row=1, column=1)
-                #     #--- max peak height of the voltammogram ---#
-                #     ttk.Label(high_parameter_frame, text="Expected Max Peak Height (uA)", font=MEDIUM_FONT).\
-                #         grid(row=0, column=2)
-                #     self.high_gauss_maxheight_entry = ttk.Entry(high_parameter_frame, width=7)
-                #     self.high_gauss_maxheight_entry.insert(tk.END, str(global_high_gauss_maxheight))
-                #     self.high_gauss_maxheight_entry.grid(row=1, column=2)
-                # ############################################################
-                # ### If both high and low frequencies are being analyzed, ###
-                # ### create buttons to switch between the two             ###
-                # ############################################################
-                # if self.high and self.low:
-                #     self.select_low_parameters =\
-                #         ttk.Button(regression_frame, style="Off.TButton",\
-                #                 text=f"f <= {CUTOFF_FREQUENCY}Hz",\
-                #                     command=lambda: self.show_frame(FRAME_LOW_PARAMETER))
-                #     self.select_low_parameters.grid(row=4, column=0, pady=5, padx=5)
-                #     self.select_high_parameters =\
-                #         ttk.Button(regression_frame, style="On.TButton",\
-                #                 text=f"f > {CUTOFF_FREQUENCY}Hz",\
-                #                     command=lambda: self.show_frame(FRAME_HIGH_PARAMETER))
-                #     self.select_high_parameters.grid(row=4, column=1, pady=5, padx=5)
-                #--- Button to apply adjustments ---#
-                #self.adjust_parameter_button = ttk.Button(regression_frame, text="Apply",\
-                #                                        command=self.adjust_parameters)
-                #self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
+                
         self.x_axis_control_left = tk.IntVar()
         self.x_axis_control_left.set(XBound.START_PLUS.value)
         self.x_axis_control_right = tk.IntVar()
@@ -1975,14 +1872,6 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         global_gauss_peak[elec][freq] = float(self.gauss_peak_entry[elec][freq].get())
                         global_gauss_baseline[elec][freq] = float(self.gauss_baseline_entry[elec][freq].get())
                         global_gauss_maxheight[elec][freq] = float(self.gauss_maxheight_entry[elec][freq].get())
-                # if self.low:
-                #     global_low_gauss_peak = float(self.low_gauss_peak_entry.get())
-                #     global_low_gauss_baseline = float(self.low_gauss_baseline_entry.get())
-                #     global_low_gauss_maxheight = float(self.low_gauss_maxheight_entry.get())
-                # if self.high:
-                #     global_high_gauss_peak = float(self.high_gauss_peak_entry.get())
-                #     global_high_gauss_baseline = float(self.high_gauss_baseline_entry.get())
-                #     global_high_gauss_maxheight = float(self.high_gauss_maxheight_entry.get())
 
     #########################################################
     ### Real-time adjustment of High and Low frequencies  ###
@@ -3615,25 +3504,11 @@ class ElectrochemicalAnimation():
         ################################################
         ### Polynomial Regression or Gauss Range (V) ###
         ################################################
-        #--- if the frequency is equal or below cutoff_frequency, use the low freq parameters ---#
         xstart = global_xstart[self.num][self.count]
         xend = global_xend[self.num][self.count]
         gauss_peak = global_gauss_peak[self.num][self.count]
         gauss_baseline = global_gauss_baseline[self.num][self.count]
         gauss_maxheight = global_gauss_maxheight[self.num][self.count]
-        # if frequency <= CUTOFF_FREQUENCY:
-        #     # xstart = global_low_xstart
-        #     # xend = global_low_xend
-        #     gauss_peak = global_low_gauss_peak
-        #     gauss_baseline = global_low_gauss_baseline
-        #     gauss_maxheight = global_low_gauss_maxheight
-        # #--- if the frequency is above cutoff_frequency, use the high freq parameters ---#
-        # else:
-        #     # xstart = global_high_xstart
-        #     # xend = global_high_xend
-        #     gauss_peak = global_high_gauss_peak
-        #     gauss_baseline = global_high_gauss_baseline
-        #     gauss_maxheight = global_high_gauss_maxheight
         ###################################
         ### Retrieve data from the File ###
         ###################################
