@@ -1889,8 +1889,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
         global_low_frequency_offset = float(self.low_frequency_offset.get())
         global_low_frequency_slope = float(self.low_frequency_slope.get())
         #--- Reset the variable for the Warning Label (WrongFrequencyLabel) ---#
-        if global_low_frequency in global_frequency_list\
-            and global_high_frequency not in global_frequency_list:
+        if temp_low_frequency in global_frequency_list\
+            and temp_high_frequency not in global_frequency_list:
             if global_frequency_warning_label_exists:
                 global_wrong_frequency_label.grid_forget()
             global_wrong_frequency_label =\
@@ -1900,8 +1900,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             if not global_frequency_warning_label_exists:
                 global_frequency_warning_label_exists = True
         #--- if only the low_frequency does not exist ---#
-        elif global_low_frequency not in global_frequency_list\
-            and global_high_frequency in global_frequency_list:
+        elif temp_low_frequency not in global_frequency_list\
+            and temp_high_frequency in global_frequency_list:
             if global_frequency_warning_label_exists:
                 global_wrong_frequency_label.grid_forget()
             global_wrong_frequency_label =\
@@ -1911,8 +1911,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             if not global_frequency_warning_label_exists:
                 global_frequency_warning_label_exists = True
         #--- if both the high_frequency and low_frequency do not exist ---#
-        elif global_low_frequency not in global_frequency_list\
-            and global_high_frequency not in global_frequency_list:
+        elif temp_low_frequency not in global_frequency_list\
+            and temp_high_frequency not in global_frequency_list:
             if global_frequency_warning_label_exists:
                 global_wrong_frequency_label.grid_forget()
             global_wrong_frequency_label =\
