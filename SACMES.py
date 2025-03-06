@@ -5149,7 +5149,7 @@ class PeakMethod (Enum):
             case PeakMethod.POLY:
                 return "Poly Fit"
             case PeakMethod.GAUSS:
-                return "Gauss"
+                return "Multi-Gauss"
 global_analysis_method: AnalysisMethod = AnalysisMethod.CONTINUOUS_SCAN
 global_kdm_method: KDMMethod = KDMMethod.OLD
 global_peak_method: PeakMethod = PeakMethod.POLY
