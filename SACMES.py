@@ -1534,17 +1534,18 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             global_low_frequency_entry = ttk.Entry(self.frequency_frame, width=7)
             global_low_frequency_entry.insert(tk.END, str(global_low_frequency))
             global_low_frequency_entry.grid(row=2, column=0, padx=5)
-            ttk.Label(self.frequency_frame, text="Low Frequency Offset", font=MEDIUM_FONT).\
-                grid(row=3, column=0, pady=2, padx=2)
-            self.low_frequency_offset = ttk.Entry(self.frequency_frame, width=7)
-            self.low_frequency_offset.insert(tk.END, str(global_low_frequency_offset))
-            self.low_frequency_offset.grid(row=4, column=0, padx=2, pady=2)
-            ttk.Label(self.frequency_frame,\
-                     text="Low Frequency Slope Manipulation", font=MEDIUM_FONT).\
-                        grid(row=3, column=1, pady=2, padx=2)
-            self.low_frequency_slope = ttk.Entry(self.frequency_frame, width=7)
-            self.low_frequency_slope.insert(tk.END, str(global_low_frequency_slope))
-            self.low_frequency_slope.grid(row=4, column=1, padx=2, pady=2)
+            # Disabled drift correction
+            # ttk.Label(self.frequency_frame, text="Low Frequency Offset", font=MEDIUM_FONT).\
+            #     grid(row=3, column=0, pady=2, padx=2)
+            # self.low_frequency_offset = ttk.Entry(self.frequency_frame, width=7)
+            # self.low_frequency_offset.insert(tk.END, str(global_low_frequency_offset))
+            # self.low_frequency_offset.grid(row=4, column=0, padx=2, pady=2)
+            # ttk.Label(self.frequency_frame,\
+            #          text="Low Frequency Slope Manipulation", font=MEDIUM_FONT).\
+            #             grid(row=3, column=1, pady=2, padx=2)
+            # self.low_frequency_slope = ttk.Entry(self.frequency_frame, width=7)
+            # self.low_frequency_slope.insert(tk.END, str(global_low_frequency_slope))
+            # self.low_frequency_slope.grid(row=4, column=1, padx=2, pady=2)
             ttk.Button(self.frequency_frame, text="Apply",\
                       command=self.real_time_kdm).\
                         grid(row=5, column=0, columnspan=4, pady=3, padx=5)
@@ -1624,7 +1625,7 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                                                         command=self.adjust_parameters)
                 self.adjust_parameter_button.grid(row=5, column=0, columnspan=4, pady=10, padx=10)
             case PeakMethod.GAUSS:
-                ttk.Label(regression_frame, text="Gauss Method", font=MEDIUM_FONT).\
+                ttk.Label(regression_frame, text="Multi-Gauss Method", font=MEDIUM_FONT).\
                         grid(row=0, column=0, columnspan=4, pady=5, padx=5)
                 
                 parameter_frame = [([ttk.Frame]*len(global_frequency_list)) for i in range(global_electrode_count)]
@@ -1886,8 +1887,9 @@ class ContinuousScanManipulationFrame(ttk.Frame):
             global_ratiometric_check
         temp_high_frequency = int(global_high_frequency_entry.get())
         temp_low_frequency = int(global_low_frequency_entry.get())
-        global_low_frequency_offset = float(self.low_frequency_offset.get())
-        global_low_frequency_slope = float(self.low_frequency_slope.get())
+        # Disabled drift correction
+        # global_low_frequency_offset = float(self.low_frequency_offset.get())
+        # global_low_frequency_slope = float(self.low_frequency_slope.get())
         #--- Reset the variable for the Warning Label (WrongFrequencyLabel) ---#
         if temp_low_frequency in global_frequency_list\
             and temp_high_frequency not in global_frequency_list:
