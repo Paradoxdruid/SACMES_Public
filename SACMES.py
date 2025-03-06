@@ -4309,18 +4309,19 @@ class PostAnalysis(ttk.Frame):
             self.low_frequency_entry = ttk.Entry(self.frequency_frame, width=7)
             self.low_frequency_entry.insert(tk.END, str(global_low_frequency))
             self.low_frequency_entry.grid(row=2, column=0, padx=5)
-            tk.Label(self.frequency_frame, text="Low Frequency\n Offset",\
-                     font=MEDIUM_FONT).\
-                        grid(row=3, column=0, pady=2, padx=2)
-            self.low_frequency_offset = ttk.Entry(self.frequency_frame, width=7)
-            self.low_frequency_offset.insert(tk.END, str(global_low_frequency_offset))
-            self.low_frequency_offset.grid(row=4, column=0, padx=2, pady=2)
-            ttk.Label(self.frequency_frame, text="Low Frequency\n Slope Manipulation",\
-                      font=MEDIUM_FONT).\
-                        grid(row=3, column=1, pady=2, padx=2)
-            self.low_frequency_slope = ttk.Entry(self.frequency_frame, width=7)
-            self.low_frequency_slope.insert(tk.END, str(global_low_frequency_slope))
-            self.low_frequency_slope.grid(row=4, column=1, padx=2, pady=2)
+            # Disabled drift correction
+            # tk.Label(self.frequency_frame, text="Low Frequency\n Offset",\
+            #          font=MEDIUM_FONT).\
+            #             grid(row=3, column=0, pady=2, padx=2)
+            # self.low_frequency_offset = ttk.Entry(self.frequency_frame, width=7)
+            # self.low_frequency_offset.insert(tk.END, str(global_low_frequency_offset))
+            # self.low_frequency_offset.grid(row=4, column=0, padx=2, pady=2)
+            # ttk.Label(self.frequency_frame, text="Low Frequency\n Slope Manipulation",\
+            #           font=MEDIUM_FONT).\
+            #             grid(row=3, column=1, pady=2, padx=2)
+            # self.low_frequency_slope = ttk.Entry(self.frequency_frame, width=7)
+            # self.low_frequency_slope.insert(tk.END, str(global_low_frequency_slope))
+            # self.low_frequency_slope.grid(row=4, column=1, padx=2, pady=2)
             ttk.Button(self.frequency_frame, text="Apply Frequencies",\
                        command=self.post_analysis_kdm).\
                         grid(row=5, column=0, columnspan=2, pady=5, padx=5)
@@ -4493,8 +4494,9 @@ class PostAnalysis(ttk.Frame):
             global_ratiometric_check
         global_high_frequency = int(self.high_frequency_entry.get())
         global_low_frequency = int(self.low_frequency_entry.get())
-        global_low_frequency_offset = float(self.low_frequency_offset.get())
-        global_low_frequency_slope = float(self.low_frequency_slope.get())
+        # Disabled drift correction
+        # global_low_frequency_offset = float(self.low_frequency_offset.get())
+        # global_low_frequency_slope = float(self.low_frequency_slope.get())
         #--- Reset the variable for the Warning Label (WrongFrequencyLabel) ---#
         if global_high_frequency not in global_frequency_list\
             and global_low_frequency in global_frequency_list:
