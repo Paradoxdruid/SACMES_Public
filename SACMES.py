@@ -3617,7 +3617,7 @@ class ElectrochemicalAnimation():
                 initstd = np.array([0.05, 0.0913, 0.0913])
                 initlambda = 1.0 / (2 * initstd ** 2)
                 var0 = np.concatenate(([0.8, 0.3, 0.3], [gauss_peak, -0.7, 0.1], initlambda, [gauss_baseline], np.zeros(length), 1e-2 * np.ones(length)))
-                lboundstd = np.array([0.0289, 0.0707, 0.0707])
+                lboundstd = np.array([0.001, 0.0707, 0.0707])#0.0289
                 uboundstd = np.array([0.1, 0.1291, 0.1291])
                 uboundlambda = 1.0 / (2 * lboundstd ** 2)
                 lboundlambda = 1.0 / (2 * uboundstd ** 2)
