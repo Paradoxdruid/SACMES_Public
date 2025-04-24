@@ -523,13 +523,13 @@ class MainWindow(tk.Tk):
         ttk.Label(box3, text="File name pattern:").grid(row=box3_value, column=1)
         box3_value += 1
         self.file_name_pattern_entry = ttk.Entry(box3, width=30, justify="center", font=LARGE_FONT)
-        #self.file_name_pattern_entry.insert(tk.END, global_file_name_pattern)
-        self.file_name_pattern_entry.insert(tk.END, "<H><1>_<F>Hz__<N>.txt")
+        self.file_name_pattern_entry.insert(tk.END, global_file_name_pattern)
+        #self.file_name_pattern_entry.insert(tk.END, "<H><E>_<F>Hz__<N>.txt")
         self.file_name_pattern_entry.grid(row=box3_value, column=1)
         box3_value += 1
         ttk.Label(box3, text="<H> for handle input").grid(row=box3_value, column=1)
-        #box3_value += 1
-        #ttk.Label(box3, text="<E> for electrode #").grid(row=box3_value, column=1)
+        box3_value += 1
+        ttk.Label(box3, text="<E> for electrode # (Default 1 for Multichannel)").grid(row=box3_value, column=1)
         box3_value += 1
         ttk.Label(box3, text="<F> for frequency").grid(row=box3_value, column=1)
         box3_value += 1
@@ -2512,7 +2512,7 @@ class InitializeContinuousCanvas():
         # gauss peak, baseline, maxheight
         global_gauss_peak = [[-0.3]]*global_electrode_count
         global_gauss_baseline = [[0.3]]*global_electrode_count
-        global_gauss_maxheight = [[5.0]]*global_electrode_count
+        global_gauss_maxheight = [[20.0]]*global_electrode_count
         # gauss peak location
         global_peak_list = [[[0.0]]]*global_electrode_count
         # Peak Height/AUC data (after smoothing and polynomial regression or gauss method):
@@ -2535,7 +2535,7 @@ class InitializeContinuousCanvas():
             # gauss peak, baseline, maxheight
             global_gauss_peak[num] = [-0.3]*self.length
             global_gauss_baseline[num] = [0.3]*self.length
-            global_gauss_maxheight[num] = [5.0]*self.length
+            global_gauss_maxheight[num] = [20.0]*self.length
             # gauss peak location
             global_peak_list[num] = [[0.0]]*self.length
             # a data list for each electrode:
