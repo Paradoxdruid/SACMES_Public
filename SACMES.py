@@ -805,7 +805,7 @@ class InputFrame(ttk.Frame):
             self.electrode_listbox_frame,
             text="Multichannel",
             style="On.TButton",
-            command=lambda: self.electrode_select(ElectrodesMode.SINGLE),
+            command=lambda: None,  # self.electrode_select(ElectrodesMode.SINGLE),
         )
         self.single_electrode_file.grid(row=2, column=0, columnspan=2)
         # Disabling Multiplex selection since CH Instruments don't support 'each electrode in a separate file' format
@@ -1174,20 +1174,20 @@ class InputFrame(ttk.Frame):
         self.frequencies_listbox_frame.tkraise()
         self.frequency_entry.delete(0, tk.END)
 
-    def electrode_select(self, selector: ElectrodesMode) -> None:
-        """Select whether the data for each electrode will be in a separate file or all electrode
-        data in a single file.
-        """
-        global global_electrodes_mode
-        match selector:
-            case ElectrodesMode.SINGLE:
-                global_electrodes_mode = ElectrodesMode.SINGLE
-                self.single_electrode_file.config(style="On.TButton")
-                self.multiple_electrode_files.config(style="Off.TButton")
-            case ElectrodesMode.MULTIPLE:
-                global_electrodes_mode = ElectrodesMode.MULTIPLE
-                self.single_electrode_file.config(style="Off.TButton")
-                self.multiple_electrode_files.config(style="On.TButton")
+    # def electrode_select(self, selector: ElectrodesMode) -> None:
+    #     """Select whether the data for each electrode will be in a separate file or all electrode
+    #     data in a single file.
+    #     """
+    #     global global_electrodes_mode
+    #     match selector:
+    #         case ElectrodesMode.SINGLE:
+    #             global_electrodes_mode = ElectrodesMode.SINGLE
+    #             self.single_electrode_file.config(style="On.TButton")
+    #             self.multiple_electrode_files.config(style="Off.TButton")
+    #         case ElectrodesMode.MULTIPLE:
+    #             global_electrodes_mode = ElectrodesMode.MULTIPLE
+    #             self.single_electrode_file.config(style="Off.TButton")
+    #             self.multiple_electrode_files.config(style="On.TButton")
 
     def set_data_directory(self, parent) -> None:
         """Set the directory containing the files for data analysis.
@@ -1844,15 +1844,15 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                 self.smoothing_entry.insert(tk.END, str(global_savitzky_golay_window))
 
                 parameter_frame = [
-                    ([ttk.Frame] * len(global_frequency_list))
+                    ([ttk.Frame()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
                 self.xstart_entry = [
-                    ([ttk.Entry] * len(global_frequency_list))
+                    ([ttk.Entry()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
                 self.xend_entry = [
-                    ([ttk.Entry] * len(global_frequency_list))
+                    ([ttk.Entry()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
 
@@ -1864,11 +1864,11 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         parameter_frame[elec][freq].grid(
                             row=3, column=0, columnspan=6, sticky="nsew"
                         )
-                        parameter_frame[elec][freq].rowconfigure(0, weight=1)
-                        parameter_frame[elec][freq].rowconfigure(1, weight=1)
-                        parameter_frame[elec][freq].rowconfigure(2, weight=1)
-                        parameter_frame[elec][freq].columnconfigure(0, weight=1)
-                        parameter_frame[elec][freq].columnconfigure(1, weight=1)
+                        parameter_frame[elec][freq].rowconfigure(0, weight=1)  # pyright: ignore[reportCallIssue]
+                        parameter_frame[elec][freq].rowconfigure(1, weight=1)  # pyright: ignore[reportCallIssue]
+                        parameter_frame[elec][freq].rowconfigure(2, weight=1)  # pyright: ignore[reportCallIssue]
+                        parameter_frame[elec][freq].columnconfigure(0, weight=1)  # pyright: ignore[reportCallIssue]
+                        parameter_frame[elec][freq].columnconfigure(1, weight=1)  # pyright: ignore[reportCallIssue]
                         global_show_frames[f"{elec}{freq}"] = parameter_frame[elec][
                             freq
                         ]
@@ -1885,7 +1885,9 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                             tk.END, str(global_xstart[elec][freq])
                         )
                         self.xstart_entry[elec][freq].grid(row=1, column=0)
-                        global_xstart_entry[elec][freq] = self.xstart_entry[elec][freq]
+                        global_xstart_entry[elec][freq] = float(
+                            self.xstart_entry[elec][freq].get()
+                        )
                         # --- points discarded at the beginning of the voltammogram, xend ---#
                         ttk.Label(
                             parameter_frame[elec][freq],
@@ -1901,7 +1903,9 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         self.xend_entry[elec][freq].grid(
                             row=1, column=max(1, len(global_frequency_list) - 1)
                         )
-                        global_xend_entry[elec][freq] = self.xend_entry[elec][freq]
+                        global_xend_entry[elec][freq] = float(
+                            self.xend_entry[elec][freq].get()
+                        )
 
                         col = 0
                         for i in range(len(global_frequency_list)):
@@ -1933,25 +1937,25 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                 ).grid(row=0, column=0, columnspan=4, pady=5, padx=5)
 
                 parameter_frame = [
-                    ([ttk.Frame] * len(global_frequency_list))
+                    ([ttk.Frame()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
                 self.gauss_peak_entry = [
-                    ([ttk.Entry] * len(global_frequency_list))
+                    ([ttk.Entry()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
                 self.gauss_baseline_entry = [
-                    ([ttk.Entry] * len(global_frequency_list))
+                    ([ttk.Entry()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
                 self.gauss_maxheight_entry = [
-                    ([ttk.Entry] * len(global_frequency_list))
+                    ([ttk.Entry()] * len(global_frequency_list))
                     for i in range(global_electrode_count)
                 ]
 
                 for elec in range(global_electrode_count):
                     for freq in range(len(global_frequency_list)):
-                        parameter_frame[elec][freq] = ttk.Frame(
+                        parameter_frame[elec][freq] = ttk.Frame(  # pyright: ignore[reportArgumentType,reportCallIssue]
                             regression_frame, padding=5
                         )
                         parameter_frame[elec][freq].grid(
@@ -1976,15 +1980,15 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         )
                         self.gauss_peak_entry[elec][freq].insert(
                             tk.END, str(global_gauss_peak[elec][freq])
-                        )
-                        self.gauss_peak_entry[elec][freq].grid(row=1, column=0)
+                        )  # pyright: ignore[reportCallIssue]
+                        self.gauss_peak_entry[elec][freq].grid(row=1, column=0)  # pyright: ignore[reportCallIssue]
                         # --- baseline of the voltammogram ---#
                         ttk.Label(
                             parameter_frame[elec][freq],
                             text="Exp. Baseline (uA)",
                             font=MEDIUM_FONT,
                         ).grid(row=0, column=1)
-                        self.gauss_baseline_entry[elec][freq] = ttk.Entry(
+                        self.gauss_baseline_entry[elec][freq] = ttk.Entry(  # pyright: ignore[reportCallIssue]
                             parameter_frame[elec][freq], width=7
                         )
                         self.gauss_baseline_entry[elec][freq].insert(
@@ -2002,8 +2006,8 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                         )
                         self.gauss_maxheight_entry[elec][freq].insert(
                             tk.END, str(global_gauss_maxheight[elec][freq])
-                        )
-                        self.gauss_maxheight_entry[elec][freq].grid(row=1, column=2)
+                        )  # pyright: ignore[reportCallIssue]
+                        self.gauss_maxheight_entry[elec][freq].grid(row=1, column=2)  # pyright: ignore[reportCallIssue]
 
                         col = 0
                         for i in range(len(global_frequency_list)):
@@ -2295,13 +2299,13 @@ class ContinuousScanManipulationFrame(ttk.Frame):
                 for elec in range(global_electrode_count):
                     for freq in range(len(global_frequency_list)):
                         global_gauss_peak[elec][freq] = float(
-                            self.gauss_peak_entry[elec][freq].get()
+                            self.gauss_peak_entry[elec][freq].get()  # pyright: ignore[reportCallIssue]
                         )
                         global_gauss_baseline[elec][freq] = float(
-                            self.gauss_baseline_entry[elec][freq].get()
+                            self.gauss_baseline_entry[elec][freq].get()  # pyright: ignore[reportCallIssue]
                         )
                         global_gauss_maxheight[elec][freq] = float(
-                            self.gauss_maxheight_entry[elec][freq].get()
+                            self.gauss_maxheight_entry[elec][freq].get()  # pyright: ignore[reportCallIssue]
                         )
 
     #########################################################
@@ -2818,7 +2822,7 @@ class FrequencyMapManipulationFrame(ttk.Frame):
                     f"adjust_parameters: SG_Window (mV) {global_savitzky_golay_window}"
                 )
             case PeakMethod.GAUSS:
-                global_gauss_peak = float(self.gauss_peak_entry.get())
+                global_gauss_peak = [[float(self.gauss_peak_entry.get())]]
 
     def reset(self) -> None:
         """Reset the experiment."""
@@ -3949,7 +3953,12 @@ class ElectrochemicalAnimation:
     def _draw_frame(
         self,
         framedata: Tuple[
-            List[float], List[float], List[float], List[float], List[float]
+            List[float],
+            List[float],
+            List[float],
+            List[float],
+            List[float],
+            List[float],
         ],
         fargs,
     ) -> None:
@@ -4565,14 +4574,19 @@ class ElectrochemicalAnimation:
     def _frequency_map_func(
         self,
         framedata: Tuple[
-            List[float], List[float], List[float], List[float], List[float]
+            List[float],
+            List[float],
+            List[float],
+            List[float],
+            List[float],
+            List[float],
         ],
         *args,
     ) -> List[matplotlib.artist.Artist]:
         """Generate plots for frequency map visualization."""
         if global_key > 0:
             while True:
-                potentials, adjusted_potentials, smooth_currents, _, regression = (
+                potentials, adjusted_potentials, smooth_currents, _, regression, _ = (
                     framedata
                 )
                 ################################################################
@@ -6170,8 +6184,8 @@ global_high_xstart_entry: ttk.Entry  # delete once freq. map is fixed
 global_low_xstart_entry: ttk.Entry  # delete once freq. map is fixed
 global_high_xend_entry: ttk.Entry  # delete once freq. map is fixed
 global_low_xend_entry: ttk.Entry  # delete once freq. map is fixed
-global_xstart_entry: List[List[ttk.Entry]]
-global_xend_entry: List[List[ttk.Entry]]
+global_xstart_entry: List[List[float]]
+global_xend_entry: List[List[float]]
 global_high_frequency_entry: ttk.Entry
 global_normalization_var: tk.StringVar
 global_high_xstart: float  # delete once freq. map is fixed
